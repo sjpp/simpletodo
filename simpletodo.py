@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# TODO: connect Echap to "hade new task pane"
+# TODO: connect Enter to new task name entry in new task pane
+# TODO: connect Enter to text entries in project burger menu
+# TODO: implement task search functionnality accross all projects and switch to
+# project where task is found
+
 import os
 import sys
 import json
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GdkPixbuf, Gio
-from datetime import datetime
+from datetime import datetime, date
 
 class HeaderBarWindow(Gtk.ApplicationWindow):
     """ Initialize window with HeaderBar """
@@ -22,6 +28,10 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
         headerb = Gtk.HeaderBar()
         headerb.set_show_close_button(True)
         headerb.props.title = "Simple Todo"
+        headerb.set_has_subtitle = True
+        d = date.today()
+        subtitle = d.strftime("%A %d. %B %Y")
+        headerb.props.subtitle = str.capitalize(subtitle)
         self.set_titlebar(headerb)
 
         # Box receiving project management buttons :
@@ -32,15 +42,6 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
         Gtk.StyleContext.add_class(
             projects_mgt_box.get_style_context(), "linked")
 
-        prevb = Gtk.Button()
-        prevb.add(Gtk.Arrow(Gtk.ArrowType.LEFT, Gtk.ShadowType.NONE))
-        prevb.connect("clicked", self.on_page_nav_prev)
-        projects_nav_box.add(prevb)
-
-        nextb = Gtk.Button()
-        nextb.add(Gtk.Arrow(Gtk.ArrowType.RIGHT, Gtk.ShadowType.NONE))
-        nextb.connect("clicked", self.on_page_nav_next)
-        projects_nav_box.add(nextb)
         # Empty label, will receive percentage done later :
         self.percent_label = Gtk.Label()
         self.percent_label.set_margin_start(5)
@@ -51,7 +52,7 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
         img = Gtk.Image.new_from_icon_name("list-add-symbolic",
                                            Gtk.IconSize.MENU)
         new_project_button.set_image(img)
-        projects_mgt_box.add(new_project_button)
+        projects_nav_box.add(new_project_button)
         # Popover for new project creation dialog :
         self.new_project_popover = Gtk.Popover()
         self.new_project_popover.set_relative_to(headerb)
@@ -79,7 +80,7 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
                                            Gtk.IconSize.MENU)
         delete_project_button.set_image(img)
         delete_project_button.connect("clicked", self.on_project_delete)
-        projects_mgt_box.add(delete_project_button)
+        projects_nav_box.add(delete_project_button)
 
         # Other project mgt actions in a menu :
         self.main_menu = Gtk.Button()
@@ -199,6 +200,8 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
         self.tnotebook.set_scrollable(True)
         self.tnotebook.connect("switch-page", self.update_percent_on_change)
         self.overlay.add(self.tnotebook)
+        # Make sure percentage label is filled at startup
+        self.tnotebook.newpage.callback_percent()
 
         # Create revealer :
         self.sidebar = Gtk.Revealer()
@@ -285,8 +288,10 @@ class HeaderBarWindow(Gtk.ApplicationWindow):
         self.projects_list_popover = Gtk.Popover()
         self.projects_list_popover.set_relative_to(projects_list_button)
         self.projects_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for project_name in os.listdir(share_dir):
-            tb = Gtk.ToggleButton(project_name, relief=Gtk.ReliefStyle.NONE,
+
+        for project_name in all_projects:
+            tb = Gtk.ToggleButton(project_name,
+                                  relief=Gtk.ReliefStyle.NONE,
                                   halign=Gtk.Align.START)
             tb.connect("toggled", self.launch_task_move, project_name)
             self.projects_list_box.add(tb)
@@ -539,19 +544,14 @@ class TaskNoteBook(Gtk.Notebook):
             page1.on_tasks_save('Nouveau projet')
         else:
             # Otherwise load project files in newly created pages :
-            for file in os.listdir(share_dir):
-                try:
-                    self.newpage = ToDoListBox(callback)
-                    self.append_page(self.newpage, Gtk.Label(file))
-                    self.set_tab_reorderable(self.newpage, True)
-                    self.show_all()
-                    self.newpage.on_tasks_load_from_file(file)
-                    self.next_page()
-                except:
-                    # If file is not a correctly formated json file,
-                    # do not load it and remove the page
-                    malformed_page = self.get_current_page()
-                    self.remove_page(malformed_page)
+            print(all_projects)
+            for file in all_projects:
+                self.newpage = ToDoListBox(callback)
+                self.append_page(self.newpage, Gtk.Label(file))
+                self.set_tab_reorderable(self.newpage, True)
+                self.show_all()
+                self.newpage.on_tasks_load_from_file(file)
+                self.next_page()
 
 
 class ToDoListBox(Gtk.Box):
@@ -851,7 +851,7 @@ class ToDoListBox(Gtk.Box):
                     # to parent iter :
                     for task in j.keys():
                         self.store.append(piter, [j[task][0], task, j[task][1]])
-                        
+
     def validate(self, date):
         try:
             datetime.strptime(date, "%d/%m/%Y")
@@ -897,8 +897,9 @@ class NewTaskWin(Gtk.Grid):
         # Create a calendar to select due date by double click :
         self.calendar = Gtk.Calendar()
         box.attach(self.calendar, 0, 2, 3, 1)
-        self.calendar.connect("day-selected-double-click", self.get_cal_date,
+        self.calendar.connect("day-selected", self.get_cal_date,
                               self.calendar)
+        self.calendar.select_day(int(date.today().strftime("%d")))
 
         self.show_all()
 
@@ -1061,6 +1062,7 @@ if __name__ == '__main__':
     if not os.path.isdir(conf_dir):
         os.mkdir(conf_dir)
     conf_file = os.path.expanduser('~/.config/simpletodo/conf')
+    all_projects = []
     if os.path.isfile(conf_file):
         with open(conf_file, 'r') as f:
             configured_dir = f.read().split("=")[1]
@@ -1078,4 +1080,15 @@ if __name__ == '__main__':
         share_dir = os.path.expanduser('~/.local/share/simpletodo')
         if not os.path.isdir(share_dir):
             os.mkdir(share_dir)
+    for file in os.listdir(share_dir):
+        try:
+            with open(share_dir + "/" + file, 'r') as f:
+                try:
+                    json.load(f)
+                except StopIteration:
+                    pass
+                else:
+                    all_projects.append(file)
+        except:
+            print("Warning: " + share_dir + "/" + file + " n'a pas été chargé.")
     app.run()

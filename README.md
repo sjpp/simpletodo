@@ -2,7 +2,6 @@
 Il est écrit en Python3 et dispose d'une interface GTK3.
 
 ![./capture.png](./capture.png)
-![./tasks.png](./tasks.png)
 
 **Installation :**
 
@@ -28,7 +27,7 @@ La case à cocher devant la description de la tâches indique son état (finie /
 Via le menu en bas à gauche, vous pouvez cocher, décocher ou inverser d'un clic l'état de l'ensemble des tâches de votre projet
 Vous pouvez ajouter des sous-tâches à une tâche principale. Lorsque toutes les sous-tâches sont complétées, la tâche mère l'est aussi.
 
-![https://git.volted.net/sogal/simpleTodo/raw/master/tasks.png](https://git.volted.net/sogal/simpleTodo/raw/master/tasks.png)
+![./tasks.png](./tasks.png)
 
 ***Raccourcis clavier***
 
